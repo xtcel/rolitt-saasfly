@@ -34,8 +34,6 @@ WORKDIR /usr/src/app
 
 RUN apt-get update && apt-get install -y libssl-dev
 
-COPY . .
-
 # 安装 pnpm & yarn
 RUN npm install -g pnpm
 # 安装 Bun
@@ -63,6 +61,8 @@ RUN cp .env.production .env.local
 
 # 构建应用
 RUN bun run build
+
+COPY . .
 
 # 暴露端口，这应该与你的应用实际使用的端口一致
 EXPOSE 3000
