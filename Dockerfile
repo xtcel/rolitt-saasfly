@@ -41,6 +41,7 @@ RUN npm install -g pnpm
 # 安装 Bun
 RUN npm install -g bun
 
+RUN node --version
 RUN yarn --version
 RUN bun --version 
 
