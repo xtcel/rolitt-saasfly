@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider     = "postgresql"
-  url          = env("POSTGRES_URL")
+  provider     = "mysql"
+  url          = env("MYSQL_URL")
   relationMode = "prisma"
 }
 
@@ -18,55 +18,85 @@ enum SubscriptionPlan {
 }
 
 model Customer {
-  id                     Int               @id @default(autoincrement())
-  authUserId             String
-  name                   String?
-  plan                   SubscriptionPlan?
-  stripeCustomerId       String?           @unique
-  stripeSubscriptionId   String?           @unique
-  stripePriceId          String?
-  stripeCurrentPeriodEnd DateTime?
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @default(now())
+  id                       Int               @id @default(autoincrement())
+  authUserId               String            @map("auth_user_id")
+  name                     String?
+  plan                     SubscriptionPlan?
+  stripeCustomerId         String?           @unique @map("stripe_customer_id")
+  stripeSubscriptionId     String?           @unique @map("stripe_subscription_id")
+  stripePriceId            String?           @map("stripe_price_id")
+  stripeCurrentPeriodStart DateTime?         @map("stripe_current_period_start")
+  stripeCurrentPeriodEnd   DateTime?         @map("stripe_current_period_end")
+  isCanceled               Boolean?          @default(false) @map("is_canceled")
+  createdAt                DateTime          @default(now()) @map("created_at")
+  updatedAt                DateTime          @default(now()) @map("updated_at")
 
   @@index([authUserId])
+  @@map("customers")
 }
 
 model Account {
-  id                String  @id @default(dbgenerated("gen_random_uuid()"))
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
+  id                    String  @id @default(uuid())
+  userId                String  @map("user_id")
+  type                  String
+  provider              String
+  providerAccountId     String  @map("provider_account_id")
+  refresh_token         String? @db.Text
+  access_token          String? @db.Text
+  expires_at            Int?
+  token_type            String?
+  scope                 String?
+  id_token              String? @db.Text
+  session_state         String?
+  rolittIsSetup         Boolean @default(false) @map("rolitt_is_setup")
+  rolittAccountId       String? @map("rolitt_account_id")
+  rolittAccountUserName String? @map("rolitt_account_username")
+  rolittAccountEmail    String? @map("rolitt_account_email")
+  rolittAccountPassword String? @map("rolitt_account_password")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
 }
 
 model Session {
-  id           String   @id @default(dbgenerated("gen_random_uuid()"))
-  sessionToken String   @unique
-  userId       String
+  id           String   @id @default(uuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
 }
 
 model User {
-  id            String    @id @default(dbgenerated("gen_random_uuid()"))
+  id            String    @id @default(uuid())
   name          String?
-  email         String?   @unique
-  emailVerified DateTime?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  password      String?
   image         String?
   accounts      Account[]
   sessions      Session[]
+
+  @@map("users")
+}
+
+model EmailCode {
+  id        String    @id @default(uuid())
+  email     String
+  code      String
+  ip        String?
+  failCount Int?
+  expiredAt DateTime
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @map("updated_at")
+  deletedAt DateTime? @default(now()) @map("deleted_at")
+
+  @@map("email_codes")
 }
 
 model VerificationToken {
@@ -75,29 +105,739 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+  @@map("verification_tokens")
 }
 
-model K8sClusterConfig {
-  id         Int               @id @default(autoincrement())
-  name       String
-  location   String
-  authUserId String
-  plan       SubscriptionPlan? @default(FREE)
-  network    String?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @default(now())
-  status     Status?           @default(PENDING)
-  delete     Boolean?          @default(false)
+model Robot {
+  id                String   @id @default(uuid())
+  name              String
+  authUserId        String   @map("auth_user_id")
+  location          LOCATION @default(US) @map("location")
+  language          LANGUAGE @default(en) @map("language")
+  status            Status   @default(PENDING)
+  deviceId          String?  @map("device_id") // unique device id from machine
+  deviceCode        String?  @map("device_code") // the last 8 digits of the device id
+  instructions      String?  @map("instructions")
+  rolittRobotId     String?  @map("rolitt_robot_id")
+  rolittRobotCode   String?  @map("rolitt_robot_code")
+  rolittRobotAPIKey String?  @map("rolitt_robot_api_key")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
 
   // @@unique([plan, authUserId])
   @@index([authUserId])
+  @@map("robots")
 }
+
+/// --------------------------- GVA DBs ---------------------------------------------
+model casbin_rule {
+  id    BigInt  @id @default(autoincrement()) @db.UnsignedBigInt
+  ptype String? @db.VarChar(100)
+  v0    String? @db.VarChar(100)
+  v1    String? @db.VarChar(100)
+  v2    String? @db.VarChar(100)
+  v3    String? @db.VarChar(100)
+  v4    String? @db.VarChar(100)
+  v5    String? @db.VarChar(100)
+
+  @@unique([ptype, v0, v1, v2, v3, v4, v5], map: "idx_casbin_rule")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model exa_customers {
+  id                    BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at            DateTime?
+  updated_at            DateTime?
+  deleted_at            DateTime?
+  customer_name         String?
+  customer_phone_data   String?
+  sys_user_id           BigInt?   @db.UnsignedBigInt
+  sys_user_authority_id BigInt?   @db.UnsignedBigInt
+
+  @@index([deleted_at], map: "idx_exa_customers_deleted_at")
+}
+
+model exa_file_chunks {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at        DateTime?
+  updated_at        DateTime?
+  deleted_at        DateTime?
+  exa_file_id       BigInt?   @db.UnsignedBigInt
+  file_chunk_number BigInt?
+  file_chunk_path   String?
+
+  @@index([deleted_at], map: "idx_exa_file_chunks_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model exa_file_upload_and_downloads {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at DateTime?
+  updated_at DateTime?
+  deleted_at DateTime?
+  name       String?
+  url        String?
+  tag        String?
+  key        String?
+
+  @@index([deleted_at], map: "idx_exa_file_upload_and_downloads_deleted_at")
+}
+
+model exa_files {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at  DateTime?
+  updated_at  DateTime?
+  deleted_at  DateTime?
+  file_name   String?
+  file_md5    String?
+  file_path   String?
+  chunk_total BigInt?
+  is_finish   Boolean?
+
+  @@index([deleted_at], map: "idx_exa_files_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model jwt_blacklists {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at DateTime?
+  updated_at DateTime?
+  deleted_at DateTime?
+  jwt        String?   @db.Text
+
+  @@index([deleted_at], map: "idx_jwt_blacklists_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_apis {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at  DateTime?
+  updated_at  DateTime?
+  deleted_at  DateTime?
+  path        String?
+  description String?
+  api_group   String?
+  method      String?   @default("POST")
+
+  @@index([deleted_at], map: "idx_sys_apis_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_authorities {
+  created_at     DateTime?
+  updated_at     DateTime?
+  deleted_at     DateTime?
+  authority_id   BigInt    @id @unique(map: "uni_sys_authorities_authority_id") @default(autoincrement()) @db.UnsignedBigInt
+  authority_name String?
+  parent_id      BigInt?   @db.UnsignedBigInt
+  default_router String?   @default("dashboard")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_authority_btns {
+  authority_id         BigInt? @db.UnsignedBigInt
+  sys_menu_id          BigInt? @db.UnsignedBigInt
+  sys_base_menu_btn_id BigInt? @db.UnsignedBigInt
+
+  @@ignore
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_authority_menus {
+  sys_base_menu_id           BigInt @db.UnsignedBigInt
+  sys_authority_authority_id BigInt @db.UnsignedBigInt
+
+  @@id([sys_base_menu_id, sys_authority_authority_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_auto_code_histories {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at  DateTime?
+  updated_at  DateTime?
+  deleted_at  DateTime?
+  table_name  String?
+  package     String?
+  request     String?   @db.Text
+  struct_name String?
+  business_db String?
+  description String?
+  templates   String?   @db.Text
+  Injections  String?   @db.Text
+  flag        BigInt?
+  api_ids     String?
+  menu_id     BigInt?   @db.UnsignedBigInt
+  package_id  BigInt?   @db.UnsignedBigInt
+
+  @@index([deleted_at], map: "idx_sys_auto_code_histories_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_auto_code_packages {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at   DateTime?
+  updated_at   DateTime?
+  deleted_at   DateTime?
+  desc         String?
+  label        String?
+  template     String?
+  package_name String?
+
+  @@index([deleted_at], map: "idx_sys_auto_code_packages_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_base_menu_btns {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at       DateTime?
+  updated_at       DateTime?
+  deleted_at       DateTime?
+  name             String?
+  desc             String?
+  sys_base_menu_id BigInt?   @db.UnsignedBigInt
+
+  @@index([deleted_at], map: "idx_sys_base_menu_btns_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_base_menu_parameters {
+  id               BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at       DateTime?
+  updated_at       DateTime?
+  deleted_at       DateTime?
+  sys_base_menu_id BigInt?   @db.UnsignedBigInt
+  type             String?
+  key              String?
+  value            String?
+
+  @@index([deleted_at], map: "idx_sys_base_menu_parameters_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_base_menus {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at   DateTime?
+  updated_at   DateTime?
+  deleted_at   DateTime?
+  menu_level   BigInt?   @db.UnsignedBigInt
+  parent_id    BigInt?   @db.UnsignedBigInt
+  path         String?
+  name         String?
+  hidden       Boolean?
+  component    String?
+  sort         BigInt?
+  active_name  String?
+  keep_alive   Boolean?
+  default_menu Boolean?
+  title        String?
+  icon         String?
+  close_tab    Boolean?
+
+  @@index([deleted_at], map: "idx_sys_base_menus_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_data_authority_id {
+  sys_authority_authority_id     BigInt @db.UnsignedBigInt
+  data_authority_id_authority_id BigInt @db.UnsignedBigInt
+
+  @@id([sys_authority_authority_id, data_authority_id_authority_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_dictionaries {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at DateTime?
+  updated_at DateTime?
+  deleted_at DateTime?
+  name       String?
+  type       String?
+  status     Boolean?
+  desc       String?
+
+  @@index([deleted_at], map: "idx_sys_dictionaries_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_dictionary_details {
+  id                BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at        DateTime?
+  updated_at        DateTime?
+  deleted_at        DateTime?
+  label             String?
+  value             String?
+  extend            String?
+  status            Boolean?
+  sort              BigInt?
+  sys_dictionary_id BigInt?   @db.UnsignedBigInt
+
+  @@index([deleted_at], map: "idx_sys_dictionary_details_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_export_template_condition {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at  DateTime?
+  updated_at  DateTime?
+  deleted_at  DateTime?
+  template_id String?
+  from        String?
+  column      String?
+  operator    String?
+
+  @@index([deleted_at], map: "idx_sys_export_template_condition_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_export_template_join {
+  id          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at  DateTime?
+  updated_at  DateTime?
+  deleted_at  DateTime?
+  template_id String?
+  joins       String?
+  table       String?
+  on          String?
+
+  @@index([deleted_at], map: "idx_sys_export_template_join_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_export_templates {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at    DateTime?
+  updated_at    DateTime?
+  deleted_at    DateTime?
+  db_name       String?
+  name          String?
+  table_name    String?
+  template_id   String?
+  template_info String?   @db.Text
+  limit         BigInt?
+  order         String?
+
+  @@index([deleted_at], map: "idx_sys_export_templates_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_ignore_apis {
+  id         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at DateTime?
+  updated_at DateTime?
+  deleted_at DateTime?
+  path       String?
+  method     String?   @default("POST")
+
+  @@index([deleted_at], map: "idx_sys_ignore_apis_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_operation_records {
+  id            BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at    DateTime?
+  updated_at    DateTime?
+  deleted_at    DateTime?
+  ip            String?
+  method        String?
+  path          String?
+  status        BigInt?
+  latency       BigInt?
+  agent         String?   @db.Text
+  error_message String?
+  body          String?   @db.Text
+  resp          String?   @db.Text
+  user_id       BigInt?   @db.UnsignedBigInt
+
+  @@index([deleted_at], map: "idx_sys_operation_records_deleted_at")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_user_authority {
+  sys_user_id                BigInt @db.UnsignedBigInt
+  sys_authority_authority_id BigInt @db.UnsignedBigInt
+
+  @@id([sys_user_id, sys_authority_authority_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sys_users {
+  id           BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  created_at   DateTime?
+  updated_at   DateTime?
+  deleted_at   DateTime?
+  uuid         String?
+  username     String?
+  password     String?
+  nick_name    String?   @default("系统用户")
+  side_mode    String?   @default("dark")
+  header_img   String?   @default("https://qmplusimg.henrongyi.top/gva_header.jpg")
+  base_color   String?   @default("#fff")
+  authority_id BigInt?   @default(888) @db.UnsignedBigInt
+  phone        String?
+  email        String?
+  enable       BigInt?   @default(1)
+
+  @@index([deleted_at], map: "idx_sys_users_deleted_at")
+  @@index([username], map: "idx_sys_users_username")
+  @@index([uuid], map: "idx_sys_users_uuid")
+}
+
+
+// *** WARNING ***
+// 
+// The following models were ignored as they do not have a valid unique identifier or id. This is currently not supported by Prisma Client:
+//   - "sys_authority_btns"
+// 
+// These objects have comments defined in the database, which is not yet fully supported. Read more: https://pris.ly/d/database-comments
+//   - Type: "field", name: "exa_customers.customer_name"
+//   - Type: "field", name: "exa_customers.customer_phone_data"
+//   - Type: "field", name: "exa_customers.sys_user_id"
+//   - Type: "field", name: "exa_customers.sys_user_authority_id"
+//   - Type: "field", name: "exa_file_upload_and_downloads.name"
+//   - Type: "field", name: "exa_file_upload_and_downloads.url"
+//   - Type: "field", name: "exa_file_upload_and_downloads.tag"
+//   - Type: "field", name: "exa_file_upload_and_downloads.key"
+//   - Type: "field", name: "jwt_blacklists.jwt"
+//   - Type: "field", name: "sys_apis.path"
+//   - Type: "field", name: "sys_apis.description"
+//   - Type: "field", name: "sys_apis.api_group"
+//   - Type: "field", name: "sys_apis.method"
+//   - Type: "field", name: "sys_authorities.authority_id"
+//   - Type: "field", name: "sys_authorities.authority_name"
+//   - Type: "field", name: "sys_authorities.parent_id"
+//   - Type: "field", name: "sys_authorities.default_router"
+//   - Type: "field", name: "sys_authority_btns.authority_id"
+//   - Type: "field", name: "sys_authority_btns.sys_menu_id"
+//   - Type: "field", name: "sys_authority_btns.sys_base_menu_btn_id"
+//   - Type: "field", name: "sys_authority_menus.sys_authority_authority_id"
+//   - Type: "field", name: "sys_auto_code_histories.table_name"
+//   - Type: "field", name: "sys_auto_code_histories.package"
+//   - Type: "field", name: "sys_auto_code_histories.request"
+//   - Type: "field", name: "sys_auto_code_histories.struct_name"
+//   - Type: "field", name: "sys_auto_code_histories.business_db"
+//   - Type: "field", name: "sys_auto_code_histories.description"
+//   - Type: "field", name: "sys_auto_code_histories.templates"
+//   - Type: "field", name: "sys_auto_code_histories.Injections"
+//   - Type: "field", name: "sys_auto_code_histories.flag"
+//   - Type: "field", name: "sys_auto_code_histories.api_ids"
+//   - Type: "field", name: "sys_auto_code_histories.menu_id"
+//   - Type: "field", name: "sys_auto_code_histories.package_id"
+//   - Type: "field", name: "sys_auto_code_packages.desc"
+//   - Type: "field", name: "sys_auto_code_packages.label"
+//   - Type: "field", name: "sys_auto_code_packages.template"
+//   - Type: "field", name: "sys_auto_code_packages.package_name"
+//   - Type: "field", name: "sys_base_menu_btns.name"
+//   - Type: "field", name: "sys_base_menu_btns.sys_base_menu_id"
+//   - Type: "field", name: "sys_base_menu_parameters.type"
+//   - Type: "field", name: "sys_base_menu_parameters.key"
+//   - Type: "field", name: "sys_base_menu_parameters.value"
+//   - Type: "field", name: "sys_base_menus.parent_id"
+//   - Type: "field", name: "sys_base_menus.path"
+//   - Type: "field", name: "sys_base_menus.name"
+//   - Type: "field", name: "sys_base_menus.hidden"
+//   - Type: "field", name: "sys_base_menus.component"
+//   - Type: "field", name: "sys_base_menus.sort"
+//   - Type: "field", name: "sys_base_menus.active_name"
+//   - Type: "field", name: "sys_base_menus.keep_alive"
+//   - Type: "field", name: "sys_base_menus.default_menu"
+//   - Type: "field", name: "sys_base_menus.title"
+//   - Type: "field", name: "sys_base_menus.icon"
+//   - Type: "field", name: "sys_base_menus.close_tab"
+//   - Type: "field", name: "sys_data_authority_id.sys_authority_authority_id"
+//   - Type: "field", name: "sys_data_authority_id.data_authority_id_authority_id"
+//   - Type: "field", name: "sys_dictionaries.name"
+//   - Type: "field", name: "sys_dictionaries.type"
+//   - Type: "field", name: "sys_dictionaries.status"
+//   - Type: "field", name: "sys_dictionaries.desc"
+//   - Type: "field", name: "sys_dictionary_details.label"
+//   - Type: "field", name: "sys_dictionary_details.value"
+//   - Type: "field", name: "sys_dictionary_details.extend"
+//   - Type: "field", name: "sys_dictionary_details.status"
+//   - Type: "field", name: "sys_dictionary_details.sort"
+//   - Type: "field", name: "sys_dictionary_details.sys_dictionary_id"
+//   - Type: "field", name: "sys_export_template_condition.template_id"
+//   - Type: "field", name: "sys_export_template_condition.from"
+//   - Type: "field", name: "sys_export_template_condition.column"
+//   - Type: "field", name: "sys_export_template_condition.operator"
+//   - Type: "field", name: "sys_export_template_join.template_id"
+//   - Type: "field", name: "sys_export_template_join.joins"
+//   - Type: "field", name: "sys_export_template_join.table"
+//   - Type: "field", name: "sys_export_template_join.on"
+//   - Type: "field", name: "sys_export_templates.db_name"
+//   - Type: "field", name: "sys_export_templates.name"
+//   - Type: "field", name: "sys_export_templates.table_name"
+//   - Type: "field", name: "sys_export_templates.template_id"
+//   - Type: "field", name: "sys_export_templates.limit"
+//   - Type: "field", name: "sys_export_templates.order"
+//   - Type: "field", name: "sys_ignore_apis.path"
+//   - Type: "field", name: "sys_ignore_apis.method"
+//   - Type: "field", name: "sys_operation_records.ip"
+//   - Type: "field", name: "sys_operation_records.method"
+//   - Type: "field", name: "sys_operation_records.path"
+//   - Type: "field", name: "sys_operation_records.status"
+//   - Type: "field", name: "sys_operation_records.latency"
+//   - Type: "field", name: "sys_operation_records.agent"
+//   - Type: "field", name: "sys_operation_records.error_message"
+//   - Type: "field", name: "sys_operation_records.body"
+//   - Type: "field", name: "sys_operation_records.resp"
+//   - Type: "field", name: "sys_operation_records.user_id"
+//   - Type: "field", name: "sys_user_authority.sys_authority_authority_id"
+//   - Type: "field", name: "sys_users.uuid"
+//   - Type: "field", name: "sys_users.username"
+//   - Type: "field", name: "sys_users.password"
+//   - Type: "field", name: "sys_users.nick_name"
+//   - Type: "field", name: "sys_users.side_mode"
+//   - Type: "field", name: "sys_users.header_img"
+//   - Type: "field", name: "sys_users.base_color"
+//   - Type: "field", name: "sys_users.authority_id"
+//   - Type: "field", name: "sys_users.phone"
+//   - Type: "field", name: "sys_users.email"
+//   - Type: "field", name: "sys_users.enable"
+// 
 
 enum Status {
   PENDING
-  CREATING
-  INITING
+  FREETRIAL
   RUNNING
   STOPPED
   DELETED
+}
+
+enum LOCATION {
+  CN
+  US
+  FR
+  DE
+  IT
+  JP
+  KR
+  PT
+  RU
+  ES
+  TR
+  VN
+  AR
+  AU
+  AT
+  BE
+  BR
+  CA
+  CL
+  CO
+  CZ
+  DK
+  EG
+  FI
+  GR
+  HK
+  HU
+  IN
+  ID
+  IE
+  IL
+  MY
+  MX
+  NL
+  NZ
+  NO
+  PH
+  PL
+  RO
+  SA
+  SG
+  ZA
+  SE
+  CH
+  TH
+  UA
+  AE
+  GB
+}
+
+enum LANGUAGE {
+  en
+  zh
+  aa
+  ab
+  ae
+  af
+  ak
+  am
+  an
+  ar
+  as
+  av
+  ay
+  az
+  ba
+  be
+  bg
+  bh
+  bi
+  bm
+  bn
+  bo
+  br
+  bs
+  ca
+  ce
+  ch
+  co
+  cr
+  cs
+  cu
+  cv
+  cy
+  da
+  de
+  dv
+  dz
+  ee
+  el
+  eo
+  es
+  et
+  eu
+  fa
+  ff
+  fi
+  fj
+  fo
+  fr
+  fy
+  ga
+  gd
+  gl
+  gn
+  gu
+  gv
+  ha
+  he
+  hi
+  ho
+  hr
+  ht
+  hu
+  hy
+  hz
+  ia
+  id
+  ie
+  ig
+  ii
+  ik
+  io
+  is
+  it
+  iu
+  ja
+  jv
+  ka
+  kg
+  ki
+  kj
+  kk
+  kl
+  km
+  kn
+  ko
+  kr
+  ks
+  ku
+  kv
+  kw
+  ky
+  la
+  lb
+  lg
+  li
+  ln
+  lo
+  lt
+  lu
+  lv
+  mg
+  mh
+  mi
+  mk
+  ml
+  mn
+  mr
+  ms
+  mt
+  my
+  na
+  nb
+  nd
+  ne
+  ng
+  nl
+  nn
+  no
+  nr
+  nv
+  ny
+  oc
+  oj
+  om
+  or
+  os
+  pa
+  pi
+  pl
+  ps
+  pt
+  qu
+  rm
+  rn
+  ro
+  ru
+  rw
+  sa
+  sc
+  sd
+  se
+  sg
+  si
+  sk
+  sl
+  sm
+  sn
+  so
+  sq
+  sr
+  ss
+  st
+  su
+  sv
+  sw
+  ta
+  te
+  tg
+  th
+  ti
+  tk
+  tl
+  tn
+  to
+  tr
+  ts
+  tt
+  tw
+  ty
+  ug
+  uk
+  ur
+  uz
+  ve
+  vi
+  vo
+  wa
+  wo
+  xh
+  yi
+  yo
+  za
+  zu
 }
