@@ -55,11 +55,9 @@ RUN npx dotenv-vault@latest pull production --dotenvMe=me_2a7144e37c3870d070d812
 RUN cat .env.production
 
 RUN cp .env.production .env.local
-# 生成 prisma client
-# RUN bun run db:generate
 
-# generate prisma client
-#RUN bun run db:generate
+# prisma generate 
+RUN bun run db:generate
 
 # 构建应用
 RUN bun run build
