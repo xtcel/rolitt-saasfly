@@ -44,6 +44,8 @@ RUN node --version
 RUN yarn --version
 RUN bun --version 
 
+COPY . .
+
 # 安装项目依赖
 RUN bun install --frozen-lockfile
 
