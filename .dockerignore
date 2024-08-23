@@ -1,0 +1,7 @@
+apps/nextjs/.contentlayer/
+
+node_modules/
+
+.next/
+
+.turbo/
