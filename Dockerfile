@@ -40,6 +40,7 @@ COPY . .
 RUN npm install -g pnpm
 # 安装 Bun
 RUN npm install -g bun
+RUN bun i -g prisma-kysely
 
 RUN node --version
 RUN yarn --version
@@ -56,6 +57,9 @@ RUN cat .env.production
 RUN cp .env.production .env.local
 # 生成 prisma client
 # RUN bun run db:generate
+
+# generate prisma client
+#RUN bun run db:generate
 
 # 构建应用
 RUN bun run build
