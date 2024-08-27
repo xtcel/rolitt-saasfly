@@ -55,14 +55,14 @@ RUN npx dotenv-vault@latest pull production --dotenvMe=me_2a7144e37c3870d070d812
 RUN cat .env.production
 
 RUN cp .env.production .env.local
+# 生成 prisma client
+# RUN bun run db:generate
 
-# prisma generate 
-RUN bun run db:generate
+# generate prisma client
+#RUN bun run db:generate
 
 # 构建应用
 RUN bun run build
-
-COPY . .
 
 # 暴露端口，这应该与你的应用实际使用的端口一致
 EXPOSE 3000
