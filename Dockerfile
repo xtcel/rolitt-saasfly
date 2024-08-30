@@ -50,7 +50,7 @@ COPY . .
 RUN bun install --frozen-lockfile
 
 # 使用 dotenv-vault 拉取 .env 文件
-RUN npx dotenv-vault@latest pull production --dotenvMe=me_2a7144e37c3870d070d812ca5b59eec761c6b565ac5ccf1c7a1538950bf5d5c5 -y
+RUN npx -y dotenv-vault@latest pull production --dotenvMe=me_2a7144e37c3870d070d812ca5b59eec761c6b565ac5ccf1c7a1538950bf5d5c5 
 
 RUN cat .env.production
 
