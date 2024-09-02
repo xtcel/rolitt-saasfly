@@ -27,8 +27,6 @@ ARG LLM_POSTGRES_URL
 
 ARG MYSQL_URL
 
-ENV NODE_ENV=production
-
 # 设置工作目录
 WORKDIR /usr/src/app
 
